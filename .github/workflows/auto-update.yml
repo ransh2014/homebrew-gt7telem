@@ -1,0 +1,60 @@
+name: Auto-update from GitHub release
+
+# Polls ransh2014/gt7telemtrace for a newer release every 6h and bumps
+# this cask's version + sha256 to match -- no manual intervention needed
+# for routine releases.
+
+on:
+  schedule:
+    - cron: "15 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check latest release and update cask if needed
+        run: |
+          set -e
+          latest_tag=$(curl -s https://api.github.com/repos/ransh2014/gt7telemtrace/releases/latest | jq -r .tag_name)
+          latest_version="${latest_tag#v}"
+          current_version=$(grep -oP '(?<=version ")[^"]+' Casks/gt7telem.rb)
+
+          if [ "$latest_version" = "$current_version" ] || [ "$latest_version" = "null" ]; then
+            echo "Already up to date ($current_version)."
+            exit 0
+          fi
+          echo "Updating $current_version -> $latest_version"
+
+          url="https://github.com/ransh2014/gt7telemtrace/releases/download/${latest_tag}/gt7telem-macos.zip"
+
+          # build-macos.yml runs on the same tag push and attaches this
+          # asset to the release -- give it time to land before hashing.
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -L "$url")
+            if [ "$code" = "200" ]; then break; fi
+            echo "asset not ready yet (attempt $i, http $code), waiting 30s..."
+            sleep 30
+          done
+
+          hash=$(curl -sL "$url" | sha256sum | cut -d' ' -f1)
+
+          sed -i "s/version \".*\"/version \"$latest_version\"/" Casks/gt7telem.rb
+          sed -i "s/sha256 \".*\"/sha256 \"$hash\"/" Casks/gt7telem.rb
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git add Casks/gt7telem.rb
+          git commit -m "Update to $(grep -oP '(?<=version \")[^\"]+' Casks/gt7telem.rb)"
+          git push
