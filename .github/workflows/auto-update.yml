@@ -35,12 +35,20 @@ jobs:
 
           # build-macos.yml runs on the same tag push and attaches this
           # asset to the release -- give it time to land before hashing.
+          ready=0
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w "%{http_code}" -L "$url")
-            if [ "$code" = "200" ]; then break; fi
+            if [ "$code" = "200" ]; then ready=1; break; fi
             echo "asset not ready yet (attempt $i, http $code), waiting 30s..."
             sleep 30
           done
+
+          # Without this guard the hash below would be the sha256 of a 404
+          # error page, and we'd commit a manifest that fails every install.
+          if [ "$ready" != "1" ]; then
+            echo "::error::gt7telem asset never appeared at $url -- did the build workflow fail?"
+            exit 1
+          fi
 
           hash=$(curl -sL "$url" | sha256sum | cut -d' ' -f1)
 
