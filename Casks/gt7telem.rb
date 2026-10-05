@@ -1,6 +1,6 @@
 cask "gt7telem" do
-  version "0.7.1"
-  sha256 "2e9f940a814cc54b2944afbc80518e1e47cd777ae927822883fc459e70af3cb7"
+  version "0.8.0"
+  sha256 "9f15e83aca65ba5814ce3ccb246583a0e145466d03c0005b3fbf5741ccd7d8aa"
 
   url "https://github.com/ransh2014/gt7telemtrace/releases/download/v#{version}/gt7telem-macos.zip"
   name "TRACE"
